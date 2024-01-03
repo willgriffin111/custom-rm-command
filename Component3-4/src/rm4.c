@@ -190,7 +190,13 @@ int main(int argc, char *argv[]) {
     if (!removeDirectories && !removeEmptyDirectories){
 
         if(version){
-            printf("Version 3.0\n");
+            printf("Custom rm - Version 4\n");
+            printf("Component 3 of Operating Systems Assignment\n");
+            printf("Developed by Will Griffin\n\n");
+            printf("This version of rm is a custom implementation created as part of an academic assignment. ");
+            printf("Its features and behaviors are identical to the standard rm command found in Unix and GNU/Linux systems.\n\n");
+            printf("This software is intended for educational purposes and mirrors the functionality of traditional Unix/Linux rm tools.\n");
+            printf("Copyright notice: This software is used for educational purposes and is not intended for commercial use.\n");
             return 0;
         }
 
@@ -299,12 +305,28 @@ int main(int argc, char *argv[]) {
 
    
     if (interactiveWhenOnce) {
-        if (argc > fileStartIndex && interactive(argv[fileStartIndex])) {
-            for (int i = fileStartIndex; i < argc; i++) {
-                if (verboseMode) {
-                    verbose(argv[i], unlink(argv[i]));
-                } else {
-                    unLinkErrorHandling(unlink(argv[i]), argv[i]);
+        bool askedOnce = false;
+        for (int i = fileStartIndex; i < argc; i++) {
+            if((argc-fileStartIndex) > 3){
+                if(!askedOnce){
+                    printf("remove %d files?\n", argc-fileStartIndex);
+                    char response = getchar();
+                    if(response == 'y' || response == 'Y'){
+                        askedOnce = true;
+                    }
+                }
+                if(askedOnce){
+                    if(verboseMode){
+                        verbose(argv[i],unlink(argv[i]));     
+                    }else{
+                        unLinkErrorHandling(unlink(argv[i]),argv[i]); 
+                    }
+                }
+            }else{
+                if(verboseMode){
+                    verbose(argv[i],unlink(argv[i]));     
+                }else{
+                    unLinkErrorHandling(unlink(argv[i]),argv[i]); 
                 }
             }
         }
