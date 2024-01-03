@@ -103,7 +103,7 @@ int interactive(char file[]){
 
     gets(interactiveYN);
 
-    printf("\nEntered: %s",interactiveYN);
+    // printf("\nEntered: %s",interactiveYN);
 
     if (interactiveYN[0] == 'y' || interactiveYN[0] == 'Y') {
         return true;
@@ -257,27 +257,34 @@ int main(int argc, char *argv[]) {
             }
             return 0;
         }
-
-        if(moreThanThreeInteractiveMode){
-            for (int i = fileStartIndex; i < argc; i++) {
-                if((argc-fileStartIndex) >= 3){
-                    if(interactive(argv[i])){
-                        if(verboseMode){
-                            verbose(argv[i],unlink(argv[i]));     
-                        }else{
-                            unLinkErrorHandling(unlink(argv[i]),argv[i]); 
-                        }
+    if (moreThanThreeInteractiveMode){
+        bool askedOnce = false;
+        for (int i = fileStartIndex; i < argc; i++) {
+            if((argc-fileStartIndex) > 3){
+                if(!askedOnce){
+                    printf("remove %d files?\n", argc-fileStartIndex);
+                    char response = getchar();
+                    if(response == 'y' || response == 'Y'){
+                        askedOnce = true;
                     }
-                }else{
+                }
+                if(askedOnce){
                     if(verboseMode){
                         verbose(argv[i],unlink(argv[i]));     
                     }else{
                         unLinkErrorHandling(unlink(argv[i]),argv[i]); 
                     }
                 }
+            }else{
+                if(verboseMode){
+                    verbose(argv[i],unlink(argv[i]));     
+                }else{
+                    unLinkErrorHandling(unlink(argv[i]),argv[i]); 
+                }
             }
-            return 0;
         }
+        return 0;
+    }
 
     if (interactiveWhenNever) {
         for (int i = fileStartIndex; i < argc; i++) {

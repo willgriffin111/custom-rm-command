@@ -10,7 +10,7 @@ script_directory = os.path.dirname(os.path.abspath(__file__))
 os.chdir(script_directory)
 
 # Your file creation code
-for i in range(3):
+for i in range(4):
     with open(f"file{i}.txt", "w") as file:
         file.write("test file")
      
