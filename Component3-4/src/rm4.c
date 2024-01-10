@@ -6,9 +6,19 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <sys/stat.h> 
+#include <errno.h> 
 
 ino_t starting_filesystem_id = 0;
 bool preserve_root = true; // Default behavior is to preserve root
+
+int checkAccess(char file[]) {
+    if (access(file, F_OK | W_OK) != 0) {
+        perror(file);
+        return false;
+    } else {
+        return true;
+    }
+}
 
 // Function to get filesystem ID of a directory
 ino_t get_filesystem_id(const char *path) {
@@ -21,6 +31,17 @@ ino_t get_filesystem_id(const char *path) {
 }
 
 int remove_directory(char *dirPath, bool oneFileSystem) {
+    // Validate directory path
+    if (dirPath == NULL) {
+        fprintf(stderr, "Invalid directory path\n");
+        return -1;
+    }
+
+    // Access check
+    if (!checkAccess(dirPath)) {
+        return -1;
+    }
+
     // Check for preserve root
     if (preserve_root && strcmp(dirPath, "/") == 0) {
         fprintf(stderr, "Refusing to remove root directory\n");
@@ -40,10 +61,9 @@ int remove_directory(char *dirPath, bool oneFileSystem) {
     while ((entry = readdir(dir)) != NULL) {
         if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
             snprintf(path, sizeof(path), "%s/%s", dirPath, entry->d_name);
-            // Get filesystem ID of the directory
             ino_t current_filesystem_id = get_filesystem_id(path);
             if (oneFileSystem && current_filesystem_id != starting_filesystem_id) {
-                continue; // Skip this directory as it's on a different filesystem
+                continue;
             }
 
             if (entry->d_type == DT_DIR) {
@@ -59,12 +79,28 @@ int remove_directory(char *dirPath, bool oneFileSystem) {
     closedir(dir);
 
     if (r == 0) {
-        r = rmdir(dirPath);
+        if (rmdir(dirPath) != 0) {
+            perror("rmdir");
+            return -1;
+        }
     }
     return r;
 }
 
+
 int remove_empty_directory(char *dirPath) {
+    // Validate directory path
+    if (dirPath == NULL) {
+        perror("Invalid directory path");
+        return -1;
+    }
+
+    // Access check
+    if (!checkAccess(dirPath)) {
+        // perror already called in checkAccess
+        return -1;
+    }
+
     // Check for preserve root
     if (preserve_root && strcmp(dirPath, "/") == 0) {
         fprintf(stderr, "Refusing to remove root directory\n");
@@ -72,13 +108,13 @@ int remove_empty_directory(char *dirPath) {
     }
 
     DIR *dir = opendir(dirPath);
-    struct dirent *entry;
-    int isEmpty = 1;
-
     if (dir == NULL) {
-        perror("opendir");
+        perror("opendir failed");
         return -1;
     }
+
+    struct dirent *entry;
+    int isEmpty = 1;
 
     while ((entry = readdir(dir)) != NULL) {
         if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
@@ -86,15 +122,26 @@ int remove_empty_directory(char *dirPath) {
             break;
         }
     }
-    closedir(dir);
 
-    if (isEmpty) {
-        return rmdir(dirPath);
-    } else {
-        fprintf(stderr, "%s is not empty\n", dirPath);
+    if (closedir(dir) != 0) {
+        perror("closedir failed");
         return -1;
     }
+
+    if (isEmpty) {
+        errno = 0;  // Reset errno before the rmdir call
+        if (rmdir(dirPath) != 0) {
+            perror("rmdir failed");
+            return -1;
+        }
+    } else {
+        fprintf(stderr, "%s is not empty\n", dirPath);
+        // Return a specific error code or do not call perror here
+        return -1;
+    }
+    return 0;
 }
+
 
 int interactive(char file[]){
 
@@ -123,11 +170,18 @@ void verbose(char file[],int removalStatus){
 
 }
 
-void unLinkErrorHandling(int removalStatus,char file[]){
-    if(removalStatus != 0){
-        perror(file);
+int unLinkErrorHandling(int removalStatus, char file[]){
+    if (removalStatus != 0) {
+        int errnum = errno; 
+        fprintf(stderr, "%s: ", file); 
+        perror(""); 
+        return false;
+    } else {
+        return true;
     }
 }
+
+
 
 int main(int argc, char *argv[]) {
 
@@ -137,24 +191,11 @@ int main(int argc, char *argv[]) {
     bool options[numOptions];
 
     memset(options, false, sizeof(options));
-
-    bool verboseMode = false;
-    bool interactiveMode = false;
-    bool moreThanThreeInteractiveMode = false;
-    bool removeDirectories = false;
-    bool removeEmptyDirectories = false;
-    bool forceMode = false;
-
-    bool interactiveWhenNever = false;
-    bool interactiveWhenOnce = false;
-    bool interactiveWhenAlways = false;
-
-    bool oneFileSystemMode = false;
-    bool noPreserveRootMode = false;
-    bool preserveRootMode = false;
-
-    bool help = false;
-    bool version = false;
+    bool verboseMode = false, interactiveMode = false, moreThanThreeInteractiveMode = false,
+    removeDirectories = false, removeEmptyDirectories = false, forceMode = false,
+    interactiveWhenNever = false, interactiveWhenOnce = false, interactiveWhenAlways = false,
+    oneFileSystemMode = false, noPreserveRootMode = false, preserveRootMode = false,
+    help = false, version = false;
 
     int fileStartIndex = 1;
     char interactiveYN;
@@ -247,10 +288,10 @@ int main(int argc, char *argv[]) {
             for (int i = fileStartIndex; i < argc; i++) {
                 if(interactive(argv[i])){
                     if(verboseMode){
-                        verbose(argv[i],unlink(argv[i]));     
-
+                        if (checkAccess(argv[i])) verbose(argv[i],unLinkErrorHandling(unlink(argv[i]),argv[i]));
+   
                     }else{
-                        unLinkErrorHandling(unlink(argv[i]),argv[i]); 
+                        if (checkAccess(argv[i])) unLinkErrorHandling(unlink(argv[i]),argv[i]);
                     }
                 }
             }
@@ -258,7 +299,13 @@ int main(int argc, char *argv[]) {
         }
         if(verboseMode && !interactiveMode && !moreThanThreeInteractiveMode && !interactiveWhenNever && !interactiveWhenOnce && !interactiveWhenAlways){
             for (int i = fileStartIndex; i < argc; i++) {
-                verbose(argv[i],unlink(argv[i]));
+                // verbose(argv[i],unlink(argv[i]));
+                if (forceMode) {
+                    if (checkAccess(argv[i])) verbose(argv[i],unlink(argv[i]));
+                } else {
+                    if (checkAccess(argv[i])) verbose(argv[i],unLinkErrorHandling(unlink(argv[i]),argv[i]));
+                }
+                // if (checkAccess(argv[i])) verbose(argv[i],unLinkErrorHandling(unlink(argv[i]),argv[i]));
 
             }
             return 0;
@@ -276,16 +323,20 @@ int main(int argc, char *argv[]) {
                 }
                 if(askedOnce){
                     if(verboseMode){
-                        verbose(argv[i],unlink(argv[i]));     
+                        // verbose(argv[i],unlink(argv[i]));  
+                        if (checkAccess(argv[i])) verbose(argv[i],unLinkErrorHandling(unlink(argv[i]),argv[i]));   
                     }else{
-                        unLinkErrorHandling(unlink(argv[i]),argv[i]); 
+                        // unLinkErrorHandling(unlink(argv[i]),argv[i]); 
+                         if (checkAccess(argv[i])) unLinkErrorHandling(unlink(argv[i]),argv[i]);
                     }
                 }
             }else{
                 if(verboseMode){
-                    verbose(argv[i],unlink(argv[i]));     
+                    // verbose(argv[i],unlink(argv[i]));    
+                    if (checkAccess(argv[i])) verbose(argv[i],unLinkErrorHandling(unlink(argv[i]),argv[i]));    
                 }else{
-                    unLinkErrorHandling(unlink(argv[i]),argv[i]); 
+                    // unLinkErrorHandling(unlink(argv[i]),argv[i]); 
+                    if (checkAccess(argv[i])) unLinkErrorHandling(unlink(argv[i]),argv[i]);
                 }
             }
         }
@@ -295,9 +346,11 @@ int main(int argc, char *argv[]) {
     if (interactiveWhenNever) {
         for (int i = fileStartIndex; i < argc; i++) {
             if (verboseMode) {
-                verbose(argv[i], unlink(argv[i]));
+                // verbose(argv[i], unlink(argv[i]));
+                 if (checkAccess(argv[i])) verbose(argv[i],unLinkErrorHandling(unlink(argv[i]),argv[i]));    
             } else {
-                unLinkErrorHandling(unlink(argv[i]), argv[i]);
+                // unLinkErrorHandling(unlink(argv[i]), argv[i]);
+                 if (checkAccess(argv[i])) unLinkErrorHandling(unlink(argv[i]),argv[i]);
             }
         }
         return 0;
@@ -317,16 +370,20 @@ int main(int argc, char *argv[]) {
                 }
                 if(askedOnce){
                     if(verboseMode){
-                        verbose(argv[i],unlink(argv[i]));     
+                        // verbose(argv[i],unlink(argv[i]));  
+                        if (checkAccess(argv[i])) verbose(argv[i],unLinkErrorHandling(unlink(argv[i]),argv[i]));       
                     }else{
-                        unLinkErrorHandling(unlink(argv[i]),argv[i]); 
+                        // unLinkErrorHandling(unlink(argv[i]),argv[i]); 
+                        if (checkAccess(argv[i])) unLinkErrorHandling(unlink(argv[i]),argv[i]);
                     }
                 }
             }else{
                 if(verboseMode){
-                    verbose(argv[i],unlink(argv[i]));     
+                    // verbose(argv[i],unlink(argv[i]));   
+                    if (checkAccess(argv[i])) verbose(argv[i],unLinkErrorHandling(unlink(argv[i]),argv[i]));        
                 }else{
-                    unLinkErrorHandling(unlink(argv[i]),argv[i]); 
+                    // unLinkErrorHandling(unlink(argv[i]),argv[i]); 
+                     if (checkAccess(argv[i])) unLinkErrorHandling(unlink(argv[i]),argv[i]);
                 }
             }
         }
@@ -336,9 +393,11 @@ int main(int argc, char *argv[]) {
         for (int i = fileStartIndex; i < argc; i++) {
             if (interactive(argv[i])) {
                 if (verboseMode) {
-                    verbose(argv[i], unlink(argv[i]));
+                    // verbose(argv[i], unlink(argv[i]));
+                    if (checkAccess(argv[i])) verbose(argv[i],unLinkErrorHandling(unlink(argv[i]),argv[i]));        
                 } else {
-                    unLinkErrorHandling(unlink(argv[i]), argv[i]);
+                    // unLinkErrorHandling(unlink(argv[i]), argv[i]);
+                     if (checkAccess(argv[i])) unLinkErrorHandling(unlink(argv[i]),argv[i]);
                 }
             }
         }
@@ -355,7 +414,6 @@ int main(int argc, char *argv[]) {
     }
 
     if (removeDirectories) {
-        // printf("removeDirectories\n");
         for (int i = fileStartIndex; i < argc; i++) {
             if (interactiveMode && !interactive(argv[i])) {
                 continue;
@@ -370,26 +428,32 @@ int main(int argc, char *argv[]) {
         }
     } 
 
-    if (removeEmptyDirectories) {
-        // printf("removeEmptyDirectories\n");
-        for (int i = fileStartIndex; i < argc; i++) {
-            if (interactiveMode && !interactive(argv[i])) {
-                continue;
-            }
-
-            int removalStatus = remove_empty_directory(argv[i]);
-            if (verboseMode) {
-                verbose(argv[i], removalStatus);
-            } else {
-                unLinkErrorHandling(removalStatus, argv[i]);
-            }
+   if (removeEmptyDirectories) {
+    for (int i = fileStartIndex; i < argc; i++) {
+        if (interactiveMode && !interactive(argv[i])) {
+            continue;
         }
+
+        int removalStatus = remove_empty_directory(argv[i]);
+        if (verboseMode) {
+            verbose(argv[i], removalStatus);
+        } 
+        // else {
+            // Check if removalStatus indicates an error and handle it appropriately
+        //     if (removalStatus != 0) {
+        //         fprintf(stderr, "Error removing %s\n", argv[i]);
+        //     }
+        // }
     }
+}
+
 }
     if (!version && !help && !preserveRootMode && !noPreserveRootMode && !oneFileSystemMode && !verboseMode && !interactiveWhenNever && !moreThanThreeInteractiveMode && !interactiveMode && !removeEmptyDirectories && !removeDirectories && !forceMode) {
   
         for (int i = fileStartIndex; i < argc; i++) {
-            unLinkErrorHandling(unlink(argv[i]),argv[i]);
+
+            if (checkAccess(argv[i])) unLinkErrorHandling(unlink(argv[i]), argv[i]);
+
         }
         return 0;
     }       
