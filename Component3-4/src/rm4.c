@@ -12,13 +12,15 @@ ino_t starting_filesystem_id = 0;
 bool preserve_root = true; // Default behavior is to preserve root
 
 int checkAccess(char file[]) {
+    errno = 0; // Reset errno before calling access
     if (access(file, F_OK | W_OK) != 0) {
-        perror(file);
+        perror(file); // Will now correctly report errors related to access
         return false;
     } else {
         return true;
     }
 }
+
 
 // Function to get filesystem ID of a directory
 ino_t get_filesystem_id(const char *path) {
@@ -160,21 +162,22 @@ int interactive(char file[]){
 }
 
 
-void verbose(char file[],int removalStatus){
-    printf("\nVERBOSE");
+void verbose(char file[], int removalStatus) {
+    // printf("\nVERBOSE");
     if (removalStatus == 0) {
         printf("Deleted %s successfully\n", file);
-    } else {
-        perror("");
-    }
 
+    } else {
+        // Only print error if there is an error
+        printf("Error occurred while deleting %s\n", file);
+    }
 }
 
-int unLinkErrorHandling(int removalStatus, char file[]){
+
+int unLinkErrorHandling(int removalStatus, char file[]) {
     if (removalStatus != 0) {
-        int errnum = errno; 
         fprintf(stderr, "%s: ", file); 
-        perror(""); 
+        perror(""); // perror will now correctly report the last error
         return false;
     } else {
         return true;
@@ -288,7 +291,7 @@ int main(int argc, char *argv[]) {
             for (int i = fileStartIndex; i < argc; i++) {
                 if(interactive(argv[i])){
                     if(verboseMode){
-                        if (checkAccess(argv[i])) verbose(argv[i],unLinkErrorHandling(unlink(argv[i]),argv[i]));
+                        if (checkAccess(argv[i])) verbose(argv[i],unlink(argv[i]));
    
                     }else{
                         if (checkAccess(argv[i])) unLinkErrorHandling(unlink(argv[i]),argv[i]);
@@ -300,11 +303,9 @@ int main(int argc, char *argv[]) {
         if(verboseMode && !interactiveMode && !moreThanThreeInteractiveMode && !interactiveWhenNever && !interactiveWhenOnce && !interactiveWhenAlways){
             for (int i = fileStartIndex; i < argc; i++) {
                 // verbose(argv[i],unlink(argv[i]));
-                if (forceMode) {
-                    if (checkAccess(argv[i])) verbose(argv[i],unlink(argv[i]));
-                } else {
-                    if (checkAccess(argv[i])) verbose(argv[i],unLinkErrorHandling(unlink(argv[i]),argv[i]));
-                }
+
+                if (checkAccess(argv[i])) verbose(argv[i],unlink(argv[i]));
+
                 // if (checkAccess(argv[i])) verbose(argv[i],unLinkErrorHandling(unlink(argv[i]),argv[i]));
 
             }
@@ -324,7 +325,7 @@ int main(int argc, char *argv[]) {
                 if(askedOnce){
                     if(verboseMode){
                         // verbose(argv[i],unlink(argv[i]));  
-                        if (checkAccess(argv[i])) verbose(argv[i],unLinkErrorHandling(unlink(argv[i]),argv[i]));   
+                        if (checkAccess(argv[i])) verbose(argv[i],unlink(argv[i]));
                     }else{
                         // unLinkErrorHandling(unlink(argv[i]),argv[i]); 
                          if (checkAccess(argv[i])) unLinkErrorHandling(unlink(argv[i]),argv[i]);
@@ -333,7 +334,7 @@ int main(int argc, char *argv[]) {
             }else{
                 if(verboseMode){
                     // verbose(argv[i],unlink(argv[i]));    
-                    if (checkAccess(argv[i])) verbose(argv[i],unLinkErrorHandling(unlink(argv[i]),argv[i]));    
+                    if (checkAccess(argv[i])) verbose(argv[i],unlink(argv[i]));    
                 }else{
                     // unLinkErrorHandling(unlink(argv[i]),argv[i]); 
                     if (checkAccess(argv[i])) unLinkErrorHandling(unlink(argv[i]),argv[i]);
@@ -347,7 +348,7 @@ int main(int argc, char *argv[]) {
         for (int i = fileStartIndex; i < argc; i++) {
             if (verboseMode) {
                 // verbose(argv[i], unlink(argv[i]));
-                 if (checkAccess(argv[i])) verbose(argv[i],unLinkErrorHandling(unlink(argv[i]),argv[i]));    
+                if (checkAccess(argv[i])) verbose(argv[i],unlink(argv[i]));
             } else {
                 // unLinkErrorHandling(unlink(argv[i]), argv[i]);
                  if (checkAccess(argv[i])) unLinkErrorHandling(unlink(argv[i]),argv[i]);
@@ -371,7 +372,7 @@ int main(int argc, char *argv[]) {
                 if(askedOnce){
                     if(verboseMode){
                         // verbose(argv[i],unlink(argv[i]));  
-                        if (checkAccess(argv[i])) verbose(argv[i],unLinkErrorHandling(unlink(argv[i]),argv[i]));       
+                        if (checkAccess(argv[i])) verbose(argv[i],unlink(argv[i]));   
                     }else{
                         // unLinkErrorHandling(unlink(argv[i]),argv[i]); 
                         if (checkAccess(argv[i])) unLinkErrorHandling(unlink(argv[i]),argv[i]);
@@ -394,7 +395,7 @@ int main(int argc, char *argv[]) {
             if (interactive(argv[i])) {
                 if (verboseMode) {
                     // verbose(argv[i], unlink(argv[i]));
-                    if (checkAccess(argv[i])) verbose(argv[i],unLinkErrorHandling(unlink(argv[i]),argv[i]));        
+                    if (checkAccess(argv[i])) verbose(argv[i],unlink(argv[i]));       
                 } else {
                     // unLinkErrorHandling(unlink(argv[i]), argv[i]);
                      if (checkAccess(argv[i])) unLinkErrorHandling(unlink(argv[i]),argv[i]);
