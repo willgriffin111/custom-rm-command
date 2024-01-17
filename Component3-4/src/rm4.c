@@ -153,10 +153,12 @@ int remove_empty_directory(char *dirPath) {
 
 // Function to ask user for confirmation before removing a file or directory
 int interactive(char file[]){
-    char interactiveYN[1];
+    char interactiveYN[1]; //bufferOverflow vunlerability
+    //  char interactiveYN[2]; // Increase the size to 2 for null terminator
     printf("Are you sure you want to remove '%s'? ", file); // Ask for confirmation
 
-    gets(interactiveYN); // Get user input
+    gets(interactiveYN);  //bufferOverflow vunlerability
+    // fgets(interactiveYN, sizeof(interactiveYN), stdin); // Safer alternative to gets()
 
     // Check user input
     if (interactiveYN[0] == 'y' || interactiveYN[0] == 'Y') {
