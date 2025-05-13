@@ -122,7 +122,7 @@ int remove_empty_directory(char *dirPath) {
 int interactive(char file[]) {
     char interactiveYN[1];
     printf("Are you sure you want to remove '%s'? ", file);
-    gets(interactiveYN);
+    fgets(interactiveYN, sizeof(interactiveYN), stdin);
     if (interactiveYN[0] == 'y' || interactiveYN[0] == 'Y') {
         return true;
     } else {
